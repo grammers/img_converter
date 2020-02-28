@@ -1,2 +1,3 @@
 # img_converter
-Converts ros images to cv bridged brg8
+convert image stored in .h5 format to ros image
+publish on "/usb_cam/image_raw"

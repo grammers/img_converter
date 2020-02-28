@@ -16,12 +16,12 @@ import numpy as np
 import torch
 import random
 
+# used to extrakt data out of .h5 file
 class FrameDataset(data.Dataset):
     
-    def __init__(self, f, transform=None, test = False):
+    def __init__(self, f, transform=None):
         self.f = f 
         self.transform = transform 
-        self.test = test
         
     def __getitem__(self, index):
 
@@ -34,9 +34,6 @@ class FrameDataset(data.Dataset):
 
         if self.transform is not None:
             for i in range(rgb.shape[0]):
-                if (prob > 0.5 and not self.test):
-                    flip_transform = transforms.Compose([transforms.ToPILImage(), transforms.RandomHorizontalFlip(1.0)])
-                    #rgb[i,:,:,:] = flip_transform(rgb[i,:,:,:])
                 t_rgb[i,:,:,:] = self.transform(rgb[i,:,:,:])
 
                 
@@ -49,41 +46,32 @@ class image_converter:
 
     def __init__(self):
         
-        self.hfp_test = h5py.File('/home/hexa/catkin_workspaces/catkin_samuel/src/nearCollision/data/h5_files/6ImageTest.h5', 'r')
+        self.hfp_test = h5py.File(
+        '/home/hexa/catkin_workspaces/catkin_samuel/src/nearCollision/data/h5_files/6ImageTest.h5', 'r')
+        
         self.mean = self.hfp_test["Mean"][()]
         self.var = self.hfp_test["Variance"][()]
-        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        self.test_loader = data.DataLoader(FrameDataset(f = self.hfp_test, transform = transforms.Compose([transforms.ToTensor(), self.normalize]), test = True), batch_size=1)
+        self.normalize = transforms.Normalize(
+        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        
+        self.test_loader = data.DataLoader(
+        FrameDataset(f = self.hfp_test, transform = transforms.Compose(
+        [transforms.ToTensor(), self.normalize])), batch_size=1)
         
         
         self.bridge = CvBridge()
         
         self.image_pub = rospy.Publisher("/usb_cam/image_raw", Image, queue_size = 10)
-        #self.image_sub = rospy.Subscriber("/usb_cam/image_raw",Image,self.callback)
 
-    def callback(self):
-        '''
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-        except CvBridgeError as e:
-            print(e)
-        
-        self.image_pub.publish(cv_image)
-        '''
-        #(rows,cols,channels) = cv_image.shape
-        #if cols > 60 and rows > 60 :
-        #    cv2.circle(cv_image, (50,50), 10, 255)
-
-        #cv2.imshow("Image window", cv_image)
-        #cv2.waitKey(3)
+    def spin(self):
         rate = rospy.Rate(1)
+        #iterate over the mimages in the .h5 file
         for iter, (img, rgb, label) in enumerate(self.test_loader,0):
             if rospy.is_shutdown():
                 break
-
-            (channels, rows, cols) = img[0,-1,:,:,:].shape
-            cv_img = (rows, cols, channels)
             
+            #convert cv img format to ros img format
+            #and publish
             try:
                 self.image_pub.publish(
                 self.bridge.cv2_to_imgmsg(
@@ -91,14 +79,14 @@ class image_converter:
             except CvBridgeError as e:
                 print(e)
             print("loop")
+            # sleep to give cnn node time to work
             rate.sleep()
 
 def main(args):
     ic = image_converter()
     rospy.init_node('image_converter', anonymous=True)
     try:
-        ic.callback()
-        rospy.spin()
+        ic.spin()
     except KeyboardInterrupt:
         print("Shutting down")
     cv2.destroyAllWindows()
