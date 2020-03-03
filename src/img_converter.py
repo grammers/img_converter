@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import random
 
+nr_img = 1
 # used to extrakt data out of .h5 file
 class FrameDataset(data.Dataset):
     
@@ -33,8 +34,11 @@ class FrameDataset(data.Dataset):
         prob = random.uniform(0, 1)
 
         if self.transform is not None:
-            for i in range(rgb.shape[0]):
-                t_rgb[i,:,:,:] = self.transform(rgb[i,:,:,:])
+            if nr_img == 6:
+                for i in range(rgb.shape[0]):
+                    t_rgb[i,:,:,:] = self.transform(rgb[i,:,:,:])
+            elif nr_img == 1:
+                t_rgb[:,:,:] = self.transform(rgb[:,:,:])
 
                 
         return rgb, t_rgb, label
@@ -46,8 +50,12 @@ class image_converter:
 
     def __init__(self):
         
-        self.hfp_test = h5py.File(
-        '/home/hexa/catkin_workspaces/catkin_samuel/src/nearCollision/data/h5_files/6ImageTest.h5', 'r')
+        if nr_img == 6:
+            self.hfp_test = h5py.File(
+            '/home/hexa/catkin_workspaces/catkin_samuel/src/nearCollision/data/h5_files/6ImageTest.h5', 'r')
+        elif nr_img == 1:
+            self.hfp_test = h5py.File(
+            '/home/hexa/catkin_workspaces/catkin_samuel/src/nearCollision/data/h5_files/SingleImageTest.h5', 'r')
         
         self.mean = self.hfp_test["Mean"][()]
         self.var = self.hfp_test["Variance"][()]
@@ -64,7 +72,10 @@ class image_converter:
         self.image_pub = rospy.Publisher("/usb_cam/image_raw", Image, queue_size = 10)
 
     def spin(self):
-        rate = rospy.Rate(1)
+        if nr_img == 6:
+            rate = rospy.Rate(1)
+        elif nr_img == 1:
+            rate = rospy.Rate(4)
         #iterate over the mimages in the .h5 file
         for iter, (img, rgb, label) in enumerate(self.test_loader,0):
             if rospy.is_shutdown():
@@ -73,9 +84,15 @@ class image_converter:
             #convert cv img format to ros img format
             #and publish
             try:
-                self.image_pub.publish(
-                self.bridge.cv2_to_imgmsg(
-                img[0,-1,:,:,:].numpy(), "bgr8"))
+                if nr_img == 6:
+                    self.image_pub.publish(
+                        self.bridge.cv2_to_imgmsg(
+                        img[0,-1,:,:,:].numpy(), "bgr8"))
+                elif nr_img == 1:
+                    self.image_pub.publish(
+                        self.bridge.cv2_to_imgmsg(
+                        img[-1,:,:,:].numpy(), "bgr8"))
+                    
             except CvBridgeError as e:
                 print(e)
             print("loop")
